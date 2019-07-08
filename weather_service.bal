@@ -36,25 +36,30 @@ service weatherForecast on weatherForecastEP {
                 if (requestPayload is xml) {
                     xml soapBody = requestPayload.*;
                     string location = soapBody.GetWeather.CityName.getTextValue();
-                    int t = location.length();
-                    if (location.length() != 0) {
-                        xml responsePayload = xml `<m0:getWeatherResponse xmlns:m0="http://services.samples">
-                                                      <m0:WeatherResult>
-                                                          <m0:Location>${location}</m0:Location>
-                                                          <m0:Temperature>${temperature}</m0:Temperature>
-                                                          <m0:RelativeHumidity>${humidity}</m0:RelativeHumidity>
-                                                      </m0:WeatherResult>
-                                                   </m0:getWeatherResponse>`;
-                        response.setXmlPayload(creatSoapResponse(responsePayload), contentType=SOAP12_CONTENT_TYPE);
-                        var result = caller->respond(response);
-                        if (result is error) {
-                            log:printError("Error sending response", err = result);
+                    if (location !== "null") {
+                        if (location.length() != 0) {
+                            xml responsePayload = xml `<m0:getWeatherResponse xmlns:m0="http://services.samples">
+                                                          <m0:WeatherResult>
+                                                              <m0:Location>${location}</m0:Location>
+                                                              <m0:Temperature>${temperature}</m0:Temperature>
+                                                              <m0:RelativeHumidity>${humidity}</m0:RelativeHumidity>
+                                                          </m0:WeatherResult>
+                                                       </m0:getWeatherResponse>`;
+                            response.setXmlPayload(creatSoapResponse(responsePayload), contentType=SOAP12_CONTENT_TYPE);
+                            var result = caller->respond(response);
+                            if (result is error) {
+                                log:printError("Error sending response", err = result);
+                            }
+                        } else {
+                            xml faultResponse = createSoapFaultBody("Required attribute is missing");
+                            response.setXmlPayload(creatSoapResponse(faultResponse), contentType=SOAP12_CONTENT_TYPE);
+                            var result = caller->respond(response);
+                            if (result is error) {
+                                log:printError("Error sending response", err = result);
+                            }
                         }
                     } else {
-                        xml faultResponse = xml `<Fault>
-                                                      <faultcode>SOAP-ENV:Client</faultcode>
-                                                      <faultstring>Required attribute is missing</faultstring>
-                                                 </Fault>`;
+                        xml faultResponse = createSoapFaultBody("Required attribute is missing");
                         response.setXmlPayload(creatSoapResponse(faultResponse), contentType=SOAP12_CONTENT_TYPE);
                         var result = caller->respond(response);
                         if (result is error) {
@@ -62,22 +67,15 @@ service weatherForecast on weatherForecastEP {
                         }
                     }
                 } else {
-                    xml faultResponse = xml `<Fault>
-                                                  <faultcode>SOAP-ENV:Client</faultcode>
-                                                  <faultstring>Unsupported Media Type</faultstring>
-                                             </Fault>`;
+                    xml faultResponse = createSoapFaultBody("Unsupported Media Type");
                     response.setXmlPayload(creatSoapResponse(faultResponse), contentType=SOAP12_CONTENT_TYPE);
                     var result = caller->respond(response);
                     if (result is error) {
                         log:printError("Error sending response", err = result);
                     }
                 }
-                
             } else {
-                xml faultResponse = xml `<Fault>
-                                              <faultcode>SOAP-ENV:Client</faultcode>
-                                              <faultstring>Unsupported Media Type</faultstring>
-                                         </Fault>`;
+                xml faultResponse = createSoapFaultBody("Unsupported Media Type");
                 response.setXmlPayload(creatSoapResponse(faultResponse), contentType=SOAP12_CONTENT_TYPE);
                 var result = caller->respond(response);
                 if (result is error) {
@@ -85,10 +83,7 @@ service weatherForecast on weatherForecastEP {
                 }
             }
         } else {
-            xml faultResponse = xml `<Fault>
-                                          <faultcode>SOAP-ENV:Client</faultcode>
-                                          <faultstring>Unsupported Media Type</faultstring>
-                                     </Fault>`;
+            xml faultResponse = createSoapFaultBody("Unsupported Media Type");
             response.setXmlPayload(creatSoapResponse(faultResponse), contentType=SOAP12_CONTENT_TYPE);
             var result = caller->respond(response);
             if (result is error) {
@@ -154,4 +149,16 @@ function createSoapBody(xml payload, string namespace) returns xml {
                         </soap:Body>`;
     bodyRoot.setChildren(payload);
     return bodyRoot;
+}
+
+# Provides the fault SOAP body.
+#
+# + message - The SOAP error message
+# + return - XML with the SOAP fault body
+function createSoapFaultBody(string message) returns xml {
+    xml faultBody = xml `<Fault>
+                           <faultcode>SOAP-ENV:Client</faultcode>
+                           <faultstring>${message}</faultstring>
+                        </Fault>`;
+    return faultBody;
 }
